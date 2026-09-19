@@ -42,6 +42,8 @@ const colorSwatches = [
   { name: "Creamy Yellow", value: "#FFE7A3" },
 ];
 
+const MAX_CUSTOM_COLORS = 6;
+
 const styleLabel = (value) =>
   styleOptions.find((option) => option.value === value)?.label ?? value;
 
@@ -81,6 +83,12 @@ function App() {
   const [description, setDescription] = useState("");
   const [count, setCount] = useState("1");
   const [model, setModel] = useState("gemini-3.6-flash");
+  const [colorMode, setColorMode] = useState("multiple");
+  const [selectedColors, setSelectedColors] = useState(
+    colorSwatches.map((swatch) => swatch.value),
+  );
+  const [customColor, setCustomColor] = useState("#FF78AC");
+  const [customColors, setCustomColors] = useState([]);
   const [referenceFile, setReferenceFile] = useState(null);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const [generationState, setGenerationState] = useState("idle");
@@ -114,6 +122,64 @@ function App() {
     setWorkspaceMessage(`Downloaded ${icon.name}.svg.`);
   };
 
+  const togglePaletteColor = (value) => {
+    if (colorMode === "single") {
+      setSelectedColors([value]);
+      return;
+    }
+
+    setSelectedColors((current) =>
+      current.includes(value)
+        ? current.filter((color) => color !== value)
+        : [...current, value],
+    );
+  };
+
+  const handleColorModeChange = (mode) => {
+    setColorMode(mode);
+
+    if (mode === "single") {
+      setSelectedColors((current) => [current[0] ?? colorSwatches[0].value]);
+      return;
+    }
+
+    setSelectedColors((current) =>
+      current.length > 0 ? current : [colorSwatches[0].value],
+    );
+  };
+
+  const handleAddCustomColor = () => {
+    const value = customColor.toUpperCase();
+
+    if (colorMode === "single") {
+      setSelectedColors([value]);
+      return;
+    }
+
+    if (customColors.includes(value)) {
+      setSelectedColors((current) =>
+        current.includes(value) ? current : [...current, value],
+      );
+      return;
+    }
+
+    if (customColors.length >= MAX_CUSTOM_COLORS) {
+      setWorkspaceMessage(
+        "You can add up to " + MAX_CUSTOM_COLORS + " custom hues.",
+      );
+      return;
+    }
+
+    setCustomColors((current) => [...current, value]);
+    setSelectedColors((current) => [...current, value]);
+    setWorkspaceMessage("");
+  };
+
+  const removeCustomColor = (value) => {
+    setCustomColors((current) => current.filter((color) => color !== value));
+    setSelectedColors((current) => current.filter((color) => color !== value));
+  };
+
   const handleSynthesize = async (event) => {
     event.preventDefault();
 
@@ -136,11 +202,19 @@ function App() {
       const reference =
         style === "custom" ? await fileToReference(referenceFile) : null;
 
+      if (selectedColors.length === 0) {
+        setGenerationState("error");
+        setWorkspaceMessage("Select at least one palette color before synthesizing.");
+        return;
+      }
+
       const icons = await generateIconFamily({
         description: description.trim(),
         style,
         count: Number(count),
         model,
+        colorMode,
+        colors: selectedColors,
         reference,
       });
 
@@ -350,21 +424,42 @@ function App() {
               <div className="palette">
                 <div className="label-row">
                   <label>Dream Pop palette</label>
-                  <span>Semantic colors</span>
+                  <span>{colorMode === "single" ? "Single color" : "Multiple colors"}</span>
                 </div>
-                <div
-                  className="swatches"
-                  aria-label="Dream Pop Sugar Bloom palette"
-                >
-                  {colorSwatches.map((swatch) => (
-                    <span
-                      className="swatch"
-                      key={swatch.value}
-                      title={`${swatch.name} ${swatch.value}`}
-                      style={{ backgroundColor: swatch.value }}
-                    />
-                  ))}
+
+                <div className="color-mode-toggle" role="group" aria-label="Color selection mode">
+                  <button type="button" className={colorMode === "single" ? "active" : ""} onClick={() => handleColorModeChange("single")} disabled={generationState === "generating"}>Single color</button>
+                  <button type="button" className={colorMode === "multiple" ? "active" : ""} onClick={() => handleColorModeChange("multiple")} disabled={generationState === "generating"}>Multiple colors</button>
                 </div>
+
+                <div className="swatches" aria-label="Dream Pop Sugar Bloom palette">
+                  {colorSwatches.map((swatch) => {
+                    const selected = selectedColors.includes(swatch.value);
+                    return (
+                      <button className={`swatch ${selected ? "selected" : ""}`} key={swatch.value} type="button" title={`${swatch.name} ${swatch.value}`} aria-label={`${swatch.name} ${swatch.value}`} aria-pressed={selected} style={{ backgroundColor: swatch.value }} onClick={() => togglePaletteColor(swatch.value)} disabled={generationState === "generating"} />
+                    );
+                  })}
+                  {customColors.map((value) => {
+                    const selected = selectedColors.includes(value);
+                    return (
+                      <button className={`swatch custom-swatch ${selected ? "selected" : ""}`} key={value} type="button" title={`Custom hue ${value}`} aria-label={`Custom hue ${value}`} aria-pressed={selected} style={{ backgroundColor: value }} onClick={() => colorMode === "single" ? setSelectedColors([value]) : selected ? removeCustomColor(value) : setSelectedColors((current) => [...current, value])} disabled={generationState === "generating"} />
+                    );
+                  })}
+                </div>
+
+                <div className="custom-hue">
+                  <div>
+                    <strong>Custom hue</strong>
+                    <span>Pick any color and add it to your palette.</span>
+                  </div>
+                  <div className="custom-hue-controls">
+                    <input type="color" value={customColor} aria-label="Choose custom hue" disabled={generationState === "generating"} onChange={(event) => setCustomColor(event.target.value)} />
+                    <code>{customColor.toUpperCase()}</code>
+                    <button type="button" onClick={handleAddCustomColor} disabled={generationState === "generating"}>{colorMode === "single" ? "Use color" : "Add hue"}</button>
+                  </div>
+                </div>
+
+                <p className="palette-help">{colorMode === "single" ? "Choose one Dream Pop swatch or use a custom hue." : "Select any combination of swatches, then add custom hues if needed."}</p>
               </div>
 
               <button
@@ -416,7 +511,9 @@ function App() {
                 </div>
                 <div>
                   <span>Palette</span>
-                  <strong>6 semantic swatches</strong>
+                  <strong>
+                    {selectedColors.length} {colorMode === "single" ? "color" : "colors"}
+                  </strong>
                 </div>
               </div>
 
