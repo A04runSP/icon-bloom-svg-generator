@@ -28,13 +28,15 @@ export async function generateIconFamily(request) {
     body: JSON.stringify(request),
   });
 
+  const rawBody = await response.text();
   let payload = null;
+
   try {
-    payload = await response.json();
+    payload = rawBody ? JSON.parse(rawBody) : null;
   } catch (error) {
     throw new IconGenerationError(
       "INVALID_RESPONSE",
-      "The generation service returned invalid JSON.",
+      `The generation service returned non-JSON data (HTTP ${response.status}).`,
       error,
     );
   }
