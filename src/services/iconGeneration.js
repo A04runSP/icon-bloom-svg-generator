@@ -17,14 +17,7 @@ export async function generateIconFamily(request) {
     body: JSON.stringify(request),
   });
 
-  if (!response.ok) {
-    throw new IconGenerationError(
-      response.status === 429 ? "RATE_LIMITED" : "API_ERROR",
-      "Icon generation request failed.",
-    );
-  }
-
-  let payload;
+  let payload = null;
   try {
     payload = await response.json();
   } catch (error) {
@@ -35,7 +28,13 @@ export async function generateIconFamily(request) {
     );
   }
 
-  const icons = validateIconResponse(payload, request.count);
+  if (!response.ok) {
+    const code = payload?.error?.code ?? "API_ERROR";
+    const message = payload?.error?.message ?? "Icon generation request failed.";
+    throw new IconGenerationError(code, message);
+  }
+
+  const icons = validateIconResponse(payload, Number(request.count));
 
   return icons.map((icon) => {
     validateSvg(icon.svg);
