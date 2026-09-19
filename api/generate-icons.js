@@ -8,7 +8,7 @@ const ALLOWED_STYLES = new Set([
   "duotone",
   "custom",
 ]);
-const ALLOWED_COUNTS = new Set([10, 20, 30, 40]);
+const MIN_ICON_COUNT = 1;\nconst MAX_ICON_COUNT = 10;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_REFERENCE_BASE64_LENGTH = 6_000_000;
@@ -144,8 +144,17 @@ export default async function handler(request, response) {
     return sendError(response, 400, "INVALID_INPUT", "Unsupported visual style.");
   }
 
-  if (!ALLOWED_COUNTS.has(count)) {
-    return sendError(response, 400, "INVALID_INPUT", "Unsupported icon quantity.");
+  if (
+    !Number.isInteger(count) ||
+    count < MIN_ICON_COUNT ||
+    count > MAX_ICON_COUNT
+  ) {
+    return sendError(
+      response,
+      400,
+      "INVALID_INPUT",
+      `Icon quantity must be between ${MIN_ICON_COUNT} and ${MAX_ICON_COUNT}.`,
+    );
   }
 
   if (!ALLOWED_MODELS.has(model)) {
