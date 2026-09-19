@@ -238,7 +238,8 @@ function App() {
         <div className="section-label">{activeTab}</div>
 
         {activeTab === "Workspace" && (
-          <section className="workspace-layout">
+          <>
+            <section className="workspace-layout">
             <form className="card workspace-card" onSubmit={handleSynthesize}>
               <div className="panel-heading">
                 <div>
@@ -479,6 +480,9 @@ function App() {
               </div>
             </section>
           )}
+        )}
+
+          </>
         )}
 
         {activeTab === "Live Sandbox" && (
