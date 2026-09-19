@@ -2,6 +2,10 @@
 
 A production-oriented AI SVG icon generator with a Dream Pop Sugar Bloom Y2K interface.
 
+## Live Demo
+
+**Production:** https://icon-bloom-svg-generator.vercel.app/
+
 ## Phase 0
 
 This phase establishes:
