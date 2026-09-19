@@ -8,7 +8,8 @@ const ALLOWED_STYLES = new Set([
   "duotone",
   "custom",
 ]);
-const MIN_ICON_COUNT = 1;\nconst MAX_ICON_COUNT = 10;
+const MIN_ICON_COUNT = 1;
+const MAX_ICON_COUNT = 10;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_REFERENCE_BASE64_LENGTH = 6_000_000;
@@ -252,7 +253,19 @@ export default async function handler(request, response) {
       },
     );
 
-    const geminiPayload = await geminiResponse.json();
+    const geminiRawBody = await geminiResponse.text();
+    let geminiPayload;
+
+    try {
+      geminiPayload = JSON.parse(geminiRawBody);
+    } catch {
+      return sendError(
+        response,
+        502,
+        "GEMINI_INVALID_RESPONSE",
+        `Gemini returned a non-JSON response (HTTP ${geminiResponse.status}).`,
+      );
+    }
 
     if (!geminiResponse.ok) {
       const providerMessage =
@@ -302,7 +315,7 @@ export default async function handler(request, response) {
         response,
         502,
         "INVALID_RESPONSE",
-        "Gemini returned invalid JSON.",
+        "Gemini returned invalid JSON output.",
       );
     }
 
