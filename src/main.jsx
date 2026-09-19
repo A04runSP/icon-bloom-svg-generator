@@ -80,7 +80,7 @@ function App() {
   const [style, setStyle] = useState("handdrawn");
   const [description, setDescription] = useState("");
   const [count, setCount] = useState("10");
-  const [model, setModel] = useState("gemini-2.5-flash");
+  const [model, setModel] = useState("gemini-3.6-flash");
   const [referenceFile, setReferenceFile] = useState(null);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const [generationState, setGenerationState] = useState("idle");
@@ -315,7 +315,7 @@ function App() {
                     disabled={generationState === "generating"}
                     onChange={(event) => setModel(event.target.value)}
                   >
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
                   </select>
                 </div>
               </div>
@@ -385,7 +385,7 @@ function App() {
                 </div>
                 <div>
                   <span>Model</span>
-                  <strong>Gemini 2.5 Flash</strong>
+                  <strong>Gemini 3.6 Flash</strong>
                 </div>
                 <div>
                   <span>Palette</span>
