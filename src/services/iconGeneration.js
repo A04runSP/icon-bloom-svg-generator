@@ -3,11 +3,22 @@ import { GENERATION_STATES, IconGenerationError } from "../lib/errors.js";
 import { sanitizeSvg } from "../lib/svg/sanitizer.js";
 import { validateSvg } from "../lib/svg/validator.js";
 
+const MIN_ICON_COUNT = 1;
+const MAX_ICON_COUNT = 10;
+
 export async function generateIconFamily(request) {
   if (!request?.description?.trim()) {
     throw new IconGenerationError(
       "INVALID_INPUT",
       "A description is required.",
+    );
+  }
+
+  const count = Number(request.count);
+  if (!Number.isInteger(count) || count < MIN_ICON_COUNT || count > MAX_ICON_COUNT) {
+    throw new IconGenerationError(
+      "INVALID_INPUT",
+      `Icon quantity must be between ${MIN_ICON_COUNT} and ${MAX_ICON_COUNT}.`,
     );
   }
 
@@ -34,7 +45,7 @@ export async function generateIconFamily(request) {
     throw new IconGenerationError(code, message);
   }
 
-  const icons = validateIconResponse(payload, Number(request.count));
+  const icons = validateIconResponse(payload, count);
 
   return icons.map((icon) => {
     validateSvg(icon.svg);
