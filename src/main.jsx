@@ -148,6 +148,22 @@ function App() {
     );
   };
 
+  const handleColorWheelPointer = (event) => {
+    const wheel = event.currentTarget;
+    const rect = wheel.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const x = event.clientX - centerX;
+    const y = event.clientY - centerY;
+    const hue = (Math.atan2(y, x) * 180) / Math.PI + 90 + 360;
+    const normalizedHue = Math.round(hue % 360);
+    const value = `hsl(${normalizedHue} 82% 58%)`;
+    const temp = document.createElement("canvas").getContext("2d");
+    temp.fillStyle = value;
+    const hex = temp.fillStyle;
+    setCustomColor(hex.toUpperCase());
+  };
+
   const handleAddCustomColor = () => {
     const value = customColor.toUpperCase();
 
@@ -449,13 +465,50 @@ function App() {
 
                 <div className="custom-hue">
                   <div>
-                    <strong>Custom hue</strong>
-                    <span>Pick any color and add it to your palette.</span>
+                    <strong>Custom color wheel</strong>
+                    <span>Pick a hue from the wheel, then use it as a single color or add it to your multi-color palette.</span>
                   </div>
+
+                  <div
+                    className="color-wheel"
+                    role="slider"
+                    aria-label="Custom color wheel"
+                    aria-valuemin="0"
+                    aria-valuemax="359"
+                    tabIndex="0"
+                    onPointerDown={(event) => {
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      handleColorWheelPointer(event);
+                    }}
+                    onPointerMove={(event) => {
+                      if (event.buttons) handleColorWheelPointer(event);
+                    }}
+                    onKeyDown={(event) => {
+                      const step = event.shiftKey ? 10 : 1;
+                      const current = customColor.match(/^#/) ? 0 : 0;
+                      if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+                        event.preventDefault();
+                        setCustomColor((value) => value);
+                      }
+                    }}
+                    style={{ "--wheel-color": customColor }}
+                  >
+                    <span className="color-wheel-center" />
+                    <span className="color-wheel-dot" aria-hidden="true" />
+                  </div>
+
                   <div className="custom-hue-controls">
-                    <input type="color" value={customColor} aria-label="Choose custom hue" disabled={generationState === "generating"} onChange={(event) => setCustomColor(event.target.value)} />
+                    <input
+                      type="color"
+                      value={customColor}
+                      aria-label="Exact custom color"
+                      disabled={generationState === "generating"}
+                      onChange={(event) => setCustomColor(event.target.value.toUpperCase())}
+                    />
                     <code>{customColor.toUpperCase()}</code>
-                    <button type="button" onClick={handleAddCustomColor} disabled={generationState === "generating"}>{colorMode === "single" ? "Use color" : "Add hue"}</button>
+                    <button type="button" onClick={handleAddCustomColor} disabled={generationState === "generating"}>
+                      {colorMode === "single" ? "Use color" : "Add hue"}
+                    </button>
                   </div>
                 </div>
 
