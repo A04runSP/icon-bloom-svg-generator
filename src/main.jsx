@@ -91,8 +91,8 @@ function App() {
   ]);
   const [customColor, setCustomColor] = useState("#FF78AC");
   const [customColors, setCustomColors] = useState([]);
-  const [wheelHue, setWheelHue] = useState(332);
-  const [wheelSaturation, setWheelSaturation] = useState(1);
+  const [wheelHue, setWheelHue] = useState(337);
+  const [wheelSaturation, setWheelSaturation] = useState(0.53);
   const [wheelValue, setWheelValue] = useState(1);
   const [referenceFile, setReferenceFile] = useState(null);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
@@ -503,7 +503,7 @@ function App() {
                       aria-valuemin="0"
                       aria-valuemax="359"
                       tabIndex="0"
-                      style={{ "--wheel-hue": wheelHue }}
+                      style={{ "--wheel-hue": wheelHue, "--wheel-color": customColor }}
                       onPointerDown={(event) => {
                         event.currentTarget.setPointerCapture(event.pointerId);
                         handleColorWheelPointer(event);
@@ -523,7 +523,7 @@ function App() {
                       aria-valuemin="0"
                       aria-valuemax="100"
                       tabIndex="0"
-                      style={{ "--wheel-hue": wheelHue }}
+                      style={{ "--wheel-hue": wheelHue, "--wheel-color": customColor }}
                       onPointerDown={(event) => {
                         event.currentTarget.setPointerCapture(event.pointerId);
                         handleColorWheelSVPointer(event);
