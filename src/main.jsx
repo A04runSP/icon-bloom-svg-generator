@@ -84,11 +84,16 @@ function App() {
   const [count, setCount] = useState("1");
   const [model, setModel] = useState("gemini-3.6-flash");
   const [colorMode, setColorMode] = useState("multiple");
-  const [selectedColors, setSelectedColors] = useState(
-    colorSwatches.map((swatch) => swatch.value),
-  );
+  const [colorTreatment, setColorTreatment] = useState("linear-gradient");
+  const [selectedColors, setSelectedColors] = useState([
+    colorSwatches[4].value,
+    colorSwatches[1].value,
+  ]);
   const [customColor, setCustomColor] = useState("#FF78AC");
   const [customColors, setCustomColors] = useState([]);
+  const [wheelHue, setWheelHue] = useState(332);
+  const [wheelSaturation, setWheelSaturation] = useState(1);
+  const [wheelValue, setWheelValue] = useState(1);
   const [referenceFile, setReferenceFile] = useState(null);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const [generationState, setGenerationState] = useState("idle");
@@ -148,6 +153,37 @@ function App() {
     );
   };
 
+  const hsvToHex = (hue, saturation, value) => {
+    const h = ((hue % 360) + 360) % 360;
+    const s = Math.max(0, Math.min(1, saturation));
+    const v = Math.max(0, Math.min(1, value));
+    const c = v * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = v - c;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+
+    if (h < 60) [r, g, b] = [c, x, 0];
+    else if (h < 120) [r, g, b] = [x, c, 0];
+    else if (h < 180) [r, g, b] = [0, c, x];
+    else if (h < 240) [r, g, b] = [0, x, c];
+    else if (h < 300) [r, g, b] = [x, 0, c];
+    else [r, g, b] = [c, 0, x];
+
+    return "#" + [r, g, b]
+      .map((channel) => Math.round((channel + m) * 255).toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
+  };
+
+  const updateWheelColor = (hue, saturation, value) => {
+    setWheelHue(hue);
+    setWheelSaturation(saturation);
+    setWheelValue(value);
+    setCustomColor(hsvToHex(hue, saturation, value));
+  };
+
   const handleColorWheelPointer = (event) => {
     const wheel = event.currentTarget;
     const rect = wheel.getBoundingClientRect();
@@ -155,13 +191,21 @@ function App() {
     const centerY = rect.top + rect.height / 2;
     const x = event.clientX - centerX;
     const y = event.clientY - centerY;
-    const hue = (Math.atan2(y, x) * 180) / Math.PI + 90 + 360;
-    const normalizedHue = Math.round(hue % 360);
-    const value = `hsl(${normalizedHue} 82% 58%)`;
-    const temp = document.createElement("canvas").getContext("2d");
-    temp.fillStyle = value;
-    const hex = temp.fillStyle;
-    setCustomColor(hex.toUpperCase());
+    const distance = Math.sqrt(x * x + y * y);
+    const radius = rect.width / 2;
+
+    if (distance < radius * 0.62 || distance > radius) return;
+
+    const angle = (Math.atan2(y, x) * 180) / Math.PI + 90 + 360;
+    updateWheelColor(Math.round(angle % 360), wheelSaturation, wheelValue);
+  };
+
+  const handleColorWheelSVPointer = (event) => {
+    const picker = event.currentTarget;
+    const rect = picker.getBoundingClientRect();
+    const saturation = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const value = Math.max(0, Math.min(1, 1 - (event.clientY - rect.top) / rect.height));
+    updateWheelColor(wheelHue, saturation, value);
   };
 
   const handleAddCustomColor = () => {
@@ -231,6 +275,8 @@ function App() {
         model,
         colorMode,
         colors: selectedColors,
+        colorTreatment: colorMode === "single" ? "solid" : colorTreatment,
+        gradientAngle: 90,
         reference,
       });
 
@@ -439,13 +485,90 @@ function App() {
 
               <div className="palette">
                 <div className="label-row">
-                  <label>Dream Pop palette</label>
-                  <span>{colorMode === "single" ? "Single color" : "Multiple colors"}</span>
+                  <label>Color Studio</label>
+                  <span>{colorMode === "single" ? "Single color" : `${selectedColors.length} color stops`}</span>
                 </div>
 
                 <div className="color-mode-toggle" role="group" aria-label="Color selection mode">
                   <button type="button" className={colorMode === "single" ? "active" : ""} onClick={() => handleColorModeChange("single")} disabled={generationState === "generating"}>Single color</button>
                   <button type="button" className={colorMode === "multiple" ? "active" : ""} onClick={() => handleColorModeChange("multiple")} disabled={generationState === "generating"}>Multiple colors</button>
+                </div>
+
+                <div className="color-studio">
+                  <div className="picker-stack">
+                    <div
+                      className="color-wheel"
+                      role="slider"
+                      aria-label="Color wheel hue"
+                      aria-valuemin="0"
+                      aria-valuemax="359"
+                      tabIndex="0"
+                      style={{ "--wheel-hue": wheelHue }}
+                      onPointerDown={(event) => {
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        handleColorWheelPointer(event);
+                      }}
+                      onPointerMove={(event) => {
+                        if (event.buttons) handleColorWheelPointer(event);
+                      }}
+                    >
+                      <span className="color-wheel-center" aria-hidden="true" />
+                      <span className="color-wheel-dot" style={{ transform: "rotate(" + wheelHue + "deg) translateY(-50px)" }} aria-hidden="true" />
+                    </div>
+
+                    <div
+                      className="color-wheel-sv"
+                      role="slider"
+                      aria-label="Color saturation and brightness"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      tabIndex="0"
+                      style={{ "--wheel-hue": wheelHue }}
+                      onPointerDown={(event) => {
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        handleColorWheelSVPointer(event);
+                      }}
+                      onPointerMove={(event) => {
+                        if (event.buttons) handleColorWheelSVPointer(event);
+                      }}
+                    >
+                      <span
+                        className="color-sv-dot"
+                        style={{
+                          left: `${wheelSaturation * 100}%`,
+                          top: `${(1 - wheelValue) * 100}%`,
+                        }}
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="color-studio-controls">
+                    <div className="color-preview-row">
+                      <span className="color-preview" style={{ backgroundColor: customColor }} />
+                      <div>
+                        <strong>{customColor.toUpperCase()}</strong>
+                        <span>Wheel selection</span>
+                      </div>
+                    </div>
+
+                    <div className="color-roles">
+                      {selectedColors.map((value, index) => (
+                        <div className="color-role" key={value}>
+                          <span className="color-role-dot" style={{ backgroundColor: value }} />
+                          <strong>{index === 0 ? "Primary" : index === 1 ? "Secondary" : index === 2 ? "Accent" : `Color ${index + 1}`}</strong>
+                          <code>{value}</code>
+                          {colorMode === "multiple" && index > 0 && (
+                            <button type="button" aria-label={`Remove ${value}`} onClick={() => removeCustomColor(value)} disabled={generationState === "generating"}>×</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <button className="add-color-button" type="button" onClick={handleAddCustomColor} disabled={generationState === "generating"}>
+                      + Add current color
+                    </button>
+                  </div>
                 </div>
 
                 <div className="swatches" aria-label="Dream Pop Sugar Bloom palette">
@@ -458,61 +581,41 @@ function App() {
                   {customColors.map((value) => {
                     const selected = selectedColors.includes(value);
                     return (
-                      <button className={`swatch custom-swatch ${selected ? "selected" : ""}`} key={value} type="button" title={`Custom hue ${value}`} aria-label={`Custom hue ${value}`} aria-pressed={selected} style={{ backgroundColor: value }} onClick={() => colorMode === "single" ? setSelectedColors([value]) : selected ? removeCustomColor(value) : setSelectedColors((current) => [...current, value])} disabled={generationState === "generating"} />
+                      <button className={`swatch custom-swatch ${selected ? "selected" : ""}`} key={value} type="button" title={`Custom hue ${value}`} aria-label={`Custom hue ${value}`} aria-pressed={selected} style={{ backgroundColor: value }} onClick={() => togglePaletteColor(value)} disabled={generationState === "generating"} />
                     );
                   })}
                 </div>
 
-                <div className="custom-hue">
-                  <div>
-                    <strong>Custom color wheel</strong>
-                    <span>Pick a hue from the wheel, then use it as a single color or add it to your multi-color palette.</span>
+                <div className="color-treatment">
+                  <div className="label-row">
+                    <label>Color treatment</label>
+                    <span>{colorMode === "single" ? "Solid" : colorTreatment}</span>
                   </div>
-
-                  <div
-                    className="color-wheel"
-                    role="slider"
-                    aria-label="Custom color wheel"
-                    aria-valuemin="0"
-                    aria-valuemax="359"
-                    tabIndex="0"
-                    onPointerDown={(event) => {
-                      event.currentTarget.setPointerCapture(event.pointerId);
-                      handleColorWheelPointer(event);
-                    }}
-                    onPointerMove={(event) => {
-                      if (event.buttons) handleColorWheelPointer(event);
-                    }}
-                    onKeyDown={(event) => {
-                      const step = event.shiftKey ? 10 : 1;
-                      const current = customColor.match(/^#/) ? 0 : 0;
-                      if (event.key === "ArrowRight" || event.key === "ArrowUp") {
-                        event.preventDefault();
-                        setCustomColor((value) => value);
-                      }
-                    }}
-                    style={{ "--wheel-color": customColor }}
-                  >
-                    <span className="color-wheel-center" />
-                    <span className="color-wheel-dot" aria-hidden="true" />
-                  </div>
-
-                  <div className="custom-hue-controls">
-                    <input
-                      type="color"
-                      value={customColor}
-                      aria-label="Exact custom color"
-                      disabled={generationState === "generating"}
-                      onChange={(event) => setCustomColor(event.target.value.toUpperCase())}
-                    />
-                    <code>{customColor.toUpperCase()}</code>
-                    <button type="button" onClick={handleAddCustomColor} disabled={generationState === "generating"}>
-                      {colorMode === "single" ? "Use color" : "Add hue"}
-                    </button>
+                  <div className="treatment-grid" role="group" aria-label="Color treatment">
+                    {[
+                      ["solid", "Solid"],
+                      ["linear-gradient", "Primary → Secondary"],
+                      ["radial-bloom", "Radial Bloom"],
+                      ["multi-mix", "Multi-Color Mix"],
+                    ].map(([value, label]) => (
+                      <button
+                        type="button"
+                        key={value}
+                        className={`treatment-button ${(colorMode === "single" ? value === "solid" : colorTreatment === value) ? "active" : ""}`}
+                        onClick={() => setColorTreatment(value)}
+                        disabled={generationState === "generating" || (colorMode === "single" && value !== "solid")}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <p className="palette-help">{colorMode === "single" ? "Choose one Dream Pop swatch or use a custom hue." : "Select any combination of swatches, then add custom hues if needed."}</p>
+                <p className="palette-help">
+                  {colorMode === "single"
+                    ? "One selected color is used as the icon's solid artwork color."
+                    : "Primary → Secondary blends the first two colors. Multi-Color Mix uses every selected color as a deliberate SVG gradient stop."}
+                </p>
               </div>
 
               <button
@@ -565,7 +668,7 @@ function App() {
                 <div>
                   <span>Palette</span>
                   <strong>
-                    {selectedColors.length} {colorMode === "single" ? "color" : "colors"}
+                    {selectedColors.length} {colorMode === "single" ? "color" : "colors"} • {colorMode === "single" ? "Solid" : colorTreatment}
                   </strong>
                 </div>
               </div>
