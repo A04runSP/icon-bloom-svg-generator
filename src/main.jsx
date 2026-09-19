@@ -98,6 +98,7 @@ function App() {
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const [generationState, setGenerationState] = useState("idle");
   const [generatedIcons, setGeneratedIcons] = useState([]);
+  const [viewMode, setViewMode] = useState("workspace");
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -282,6 +283,7 @@ function App() {
 
       setGeneratedIcons(icons);
       setGenerationState("ready");
+      setViewMode("workspace");
       setWorkspaceMessage(
         `Gemini generated and validated ${icons.length} SVG icons successfully.`,
       );
@@ -373,7 +375,7 @@ function App() {
 
         <div className="section-label">{activeTab}</div>
 
-        {activeTab === "Workspace" && (
+        {activeTab === "Workspace" && viewMode === "workspace" && (
           <>
             <section className="workspace-layout">
             <form className="card workspace-card" onSubmit={handleSynthesize}>
@@ -694,33 +696,65 @@ function App() {
           </section>
 
           {generatedIcons.length > 0 && (
-            <section className="generated-results" aria-label="Generated SVG icons">
-              <div className="generated-results-heading">
-                <div>
-                  <div className="panel-kicker">Generated assets</div>
-                  <h2>Icon Bloom results</h2>
-                </div>
-                <span>{generatedIcons.length} SVG{generatedIcons.length === 1 ? "" : "s"}</span>
+            <section className="generation-success" aria-label="Generation complete">
+              <div className="success-icon" aria-hidden="true">✓</div>
+              <div className="success-copy">
+                <div className="panel-kicker">Generation complete</div>
+                <h2>Your SVG is ready</h2>
+                <p>
+                  {generatedIcons.length} validated SVG{generatedIcons.length === 1 ? "" : "s"} generated successfully.
+                  Open the viewer to inspect the artwork before exporting.
+                </p>
               </div>
+              <button
+                className="view-svg-button"
+                type="button"
+                onClick={() => setViewMode("viewer")}
+              >
+                View SVG <span>→</span>
+              </button>
+            </section>
+          )}
+        )}
 
-              <div className="icon-gallery">
-                {generatedIcons.map((icon) => (
-                  <article className="card icon-result-card" key={icon.id}>
-                    <div className="icon-preview">
-                      <div
-                        className="generated-svg"
-                        role="img"
-                        aria-label={icon.name}
-                        dangerouslySetInnerHTML={{ __html: icon.svg }}
-                      />
-                    </div>
+          </>
+        )}
 
-                    <div className="icon-result-info">
+        {activeTab === "Workspace" && viewMode === "viewer" && generatedIcons.length > 0 && (
+          <section className="svg-viewer-page" aria-label="Generated SVG viewer">
+            <div className="viewer-header">
+              <button
+                className="back-button"
+                type="button"
+                onClick={() => setViewMode("workspace")}
+              >
+                ← Back to Workspace
+              </button>
+              <div>
+                <div className="panel-kicker">Generated assets</div>
+                <h2>Your SVG family</h2>
+              </div>
+              <span>{generatedIcons.length} SVG{generatedIcons.length === 1 ? "" : "s"}</span>
+            </div>
+
+            <div className="viewer-gallery">
+              {generatedIcons.map((icon) => (
+                <article className="card viewer-card" key={icon.id}>
+                  <div className="viewer-preview">
+                    <div
+                      className="generated-svg"
+                      role="img"
+                      aria-label={icon.name}
+                      dangerouslySetInnerHTML={{ __html: icon.svg }}
+                    />
+                  </div>
+
+                  <div className="viewer-info">
+                    <div>
                       <h3>{icon.name}</h3>
                       <span>64 × 64 SVG • validated</span>
                     </div>
-
-                    <div className="icon-result-actions">
+                    <div className="viewer-actions">
                       <button type="button" onClick={() => handleCopySvg(icon.svg)}>
                         Copy SVG
                       </button>
@@ -728,14 +762,11 @@ function App() {
                         Download SVG
                       </button>
                     </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-        )}
-
-          </>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         )}
 
         {activeTab === "Live Sandbox" && (
