@@ -102,7 +102,7 @@ export default async function handler(request, response) {
   const reference = body.reference ?? null;
 
   if (!description) {
-    return sendError(400, 400, "INVALID_INPUT", "A description is required.");
+    return sendError(response, 400, "INVALID_INPUT", "A description is required.");
   }
 
   if (description.length > MAX_DESCRIPTION_LENGTH) {
