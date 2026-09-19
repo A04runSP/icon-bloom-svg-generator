@@ -61,7 +61,13 @@ function buildPrompt({ description, style, count }) {
 
 function extractOutputText(interaction) {
   if (typeof interaction?.output_text === "string") {
-    return interaction.output_text;
+    return interaction.output_text.trim();
+  }
+
+  const outputs = Array.isArray(interaction?.outputs) ? interaction.outputs : [];
+  const lastOutput = outputs[outputs.length - 1];
+  if (typeof lastOutput?.text === "string") {
+    return lastOutput.text.trim();
   }
 
   const textParts = [];
@@ -75,6 +81,26 @@ function extractOutputText(interaction) {
   }
 
   return textParts.join("\n").trim();
+}
+
+function parseJsonOutput(text) {
+  const cleaned = text
+    .replace(/^\s*\`\`\`(?:json)?\s*/i, "")
+    .replace(/\s*\`\`\`\s*$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+
+    if (start !== -1 && end > start) {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
+
+    throw new Error("Gemini returned invalid JSON.");
+  }
 }
 
 export default async function handler(request, response) {
@@ -185,7 +211,7 @@ export default async function handler(request, response) {
             schema,
           },
           generation_config: {
-            max_output_tokens: Math.min(32768, Math.max(8192, count * 700)),
+            max_output_tokens: 32768,
           },
         }),
       },
@@ -205,6 +231,15 @@ export default async function handler(request, response) {
       );
     }
 
+    if (geminiPayload?.status === "incomplete") {
+      return sendError(
+        response,
+        502,
+        "INCOMPLETE_RESPONSE",
+        "Gemini stopped before completing the icon family. Try again.",
+      );
+    }
+
     const outputText = extractOutputText(geminiPayload);
     if (!outputText) {
       return sendError(
@@ -217,7 +252,7 @@ export default async function handler(request, response) {
 
     let payload;
     try {
-      payload = JSON.parse(outputText);
+      payload = parseJsonOutput(outputText);
     } catch {
       return sendError(
         response,
