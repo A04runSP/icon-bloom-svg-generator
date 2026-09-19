@@ -13,6 +13,8 @@ const MAX_ICON_COUNT = 10;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_DESCRIPTION_LENGTH = 500;
 const MAX_REFERENCE_BASE64_LENGTH = 6_000_000;
+const MAX_COLORS = 12;
+const HEX_COLOR_PATTERN = /^#[0-9A-F]{6}$/i;
 
 const STYLE_LABELS = {
   handdrawn: "Handdrawn Scribble",
@@ -35,8 +37,13 @@ function sendError(response, status, code, message) {
   return response.status(status).json({ error: { code, message } });
 }
 
-function buildPrompt({ description, style, count }) {
-  const palette = PALETTE.map(([name, hex]) => `${name} (${hex})`).join(", ");
+function buildPrompt({ description, style, count, colorMode, colors }) {
+  const palette = colors
+    .map((hex) => {
+      const known = PALETTE.find(([, value]) => value.toLowerCase() === hex.toLowerCase());
+      return known ? known[0] + " (" + hex + ")" : "Custom hue (" + hex + ")";
+    })
+    .join(", ");
 
   return [
     "You are the Icon Bloom SVG synthesis engine.",
@@ -44,7 +51,8 @@ function buildPrompt({ description, style, count }) {
     `Icon family description: ${description}`,
     `Visual style: ${STYLE_LABELS[style]}`,
     `Requested icon count: ${count}`,
-    `Semantic palette: ${palette}`,
+    `Color mode: ${colorMode === "single" ? "single color" : "multiple colors"}`,
+    `Selected palette: ${palette}`,
     "",
     "SVG requirements:",
     "- Return exactly the requested number of distinct icons.",
@@ -52,7 +60,9 @@ function buildPrompt({ description, style, count }) {
     "- Use vector elements only: path, circle, rect, line, polyline, polygon, ellipse, and g.",
     "- Do not use script, foreignObject, iframe, object, embed, animation, filters with external references, or external assets.",
     "- Do not include XML declarations, HTML, Markdown fences, comments, or explanatory text inside the SVG string.",
-    "- Use the supplied palette semantically and consistently across the family.",
+    colorMode === "single"
+      ? "- Use only the selected single color for all visible icon artwork, with transparency/background space as needed."
+      : "- Use only the selected colors; distribute them intentionally and consistently across the icon family.",
     "- Keep geometry clean, compact, scalable, and visually recognizable at small sizes.",
     "- Each icon must have a short unique name.",
     "",
@@ -152,6 +162,10 @@ export default async function handler(request, response) {
   const style = typeof body.style === "string" ? body.style : "";
   const count = Number(body.count);
   const model = typeof body.model === "string" ? body.model : "";
+  const colorMode = body.colorMode === "single" ? "single" : "multiple";
+  const colors = Array.isArray(body.colors)
+    ? body.colors.filter((color) => typeof color === "string")
+    : [];
   const reference = body.reference ?? null;
 
   if (!description) {
@@ -188,6 +202,28 @@ export default async function handler(request, response) {
     return sendError(response, 400, "INVALID_INPUT", "Unsupported generation model.");
   }
 
+  if (
+    colors.length === 0 ||
+    colors.length > MAX_COLORS ||
+    colors.some((color) => !HEX_COLOR_PATTERN.test(color))
+  ) {
+    return sendError(
+      response,
+      400,
+      "INVALID_PALETTE",
+      `Palette must contain 1-${MAX_COLORS} valid HEX colors.`,
+    );
+  }
+
+  if (colorMode === "single" && colors.length !== 1) {
+    return sendError(
+      response,
+      400,
+      "INVALID_PALETTE",
+      "Single color mode requires exactly one HEX color.",
+    );
+  }
+
   if (style === "custom") {
     if (
       !reference ||
@@ -214,7 +250,7 @@ export default async function handler(request, response) {
   }
   input.push({
     type: "text",
-    text: buildPrompt({ description, style, count }),
+    text: buildPrompt({ description, style, count, colorMode, colors }),
   });
 
   const schema = {
