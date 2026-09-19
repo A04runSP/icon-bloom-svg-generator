@@ -79,7 +79,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("Workspace");
   const [style, setStyle] = useState("handdrawn");
   const [description, setDescription] = useState("");
-  const [count, setCount] = useState("10");
+  const [count, setCount] = useState("1");
   const [model, setModel] = useState("gemini-3.6-flash");
   const [referenceFile, setReferenceFile] = useState(null);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
@@ -293,18 +293,22 @@ function App() {
               <div className="control-grid">
                 <div className="field">
                   <label htmlFor="count">Quantity</label>
-                  <select
+                  <input
                     id="count"
+                    type="number"
+                    min="1"
+                    max="10"
+                    step="1"
+                    inputMode="numeric"
                     value={count}
                     disabled={generationState === "generating"}
                     onChange={(event) => setCount(event.target.value)}
-                  >
-                    {["10", "20", "30", "40"].map((value) => (
-                      <option value={value} key={value}>
-                        {value} icons
-                      </option>
-                    ))}
-                  </select>
+                    onBlur={() => {
+                      const value = Math.min(10, Math.max(1, Number(count) || 1));
+                      setCount(String(value));
+                    }}
+                  />
+                  <p className="field-help">Choose 1–10 icons per request.</p>
                 </div>
 
                 <div className="field">
