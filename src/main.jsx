@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
+import { generateIconFamily } from "./services/iconGeneration.js";
 import "./styles.css";
 
 const tabs = ["Workspace", "Live Sandbox", "Glyph Catalog"];
@@ -28,7 +29,7 @@ const styleOptions = [
   {
     value: "custom",
     label: "Custom Style Reference",
-    description: "Upload a visual reference for the future generation pipeline.",
+    description: "Upload a visual reference for the generation pipeline.",
   },
 ];
 
@@ -41,6 +42,38 @@ const colorSwatches = [
   { name: "Creamy Yellow", value: "#FFE7A3" },
 ];
 
+const styleLabel = (value) =>
+  styleOptions.find((option) => option.value === value)?.label ?? value;
+
+async function fileToReference(file) {
+  if (!file) return null;
+
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    throw new Error("Style reference must be PNG, JPG, or WEBP.");
+  }
+
+  if (file.size > 4 * 1024 * 1024) {
+    throw new Error("Style reference must be 4 MB or smaller.");
+  }
+
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read the style reference."));
+    reader.readAsDataURL(file);
+  });
+
+  const commaIndex = dataUrl.indexOf(",");
+  if (commaIndex === -1) {
+    throw new Error("Style reference encoding is invalid.");
+  }
+
+  return {
+    mimeType: file.type,
+    data: dataUrl.slice(commaIndex + 1),
+  };
+}
+
 function App() {
   const [theme, setTheme] = useState("dark");
   const [activeTab, setActiveTab] = useState("Workspace");
@@ -50,6 +83,8 @@ function App() {
   const [model, setModel] = useState("gemini-2.5-flash");
   const [referenceFile, setReferenceFile] = useState(null);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
+  const [generationState, setGenerationState] = useState("idle");
+  const [generatedIcons, setGeneratedIcons] = useState([]);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -57,7 +92,7 @@ function App() {
     document.documentElement.dataset.theme = next;
   };
 
-  const handleSynthesize = (event) => {
+  const handleSynthesize = async (event) => {
     event.preventDefault();
 
     if (!description.trim()) {
@@ -66,13 +101,40 @@ function App() {
     }
 
     if (style === "custom" && !referenceFile) {
-      setWorkspaceMessage("Upload a style reference when using Custom Style Reference.");
+      setWorkspaceMessage(
+        "Upload a style reference when using Custom Style Reference.",
+      );
       return;
     }
 
-    setWorkspaceMessage(
-      "Workspace validated. Gemini generation connects in Phase 3.",
-    );
+    setGenerationState("generating");
+    setWorkspaceMessage("Sending the icon family brief to Gemini…");
+
+    try {
+      const reference =
+        style === "custom" ? await fileToReference(referenceFile) : null;
+
+      const icons = await generateIconFamily({
+        description: description.trim(),
+        style,
+        count: Number(count),
+        model,
+        reference,
+      });
+
+      setGeneratedIcons(icons);
+      setGenerationState("ready");
+      setWorkspaceMessage(
+        `Gemini generated and validated ${icons.length} SVG icons successfully.`,
+      );
+    } catch (error) {
+      setGenerationState("error");
+      setWorkspaceMessage(
+        error instanceof Error
+          ? error.message
+          : "Icon generation failed. Try again.",
+      );
+    }
   };
 
   return (
@@ -133,7 +195,11 @@ function App() {
             </p>
             <div className="status">
               <span className="status-dot" />
-              Phase 2 workspace foundation
+              {generationState === "generating"
+                ? "Gemini generation in progress"
+                : generationState === "ready"
+                  ? "Gemini generation ready"
+                  : "Phase 3 generation engine"}
             </div>
           </article>
 
@@ -157,7 +223,7 @@ function App() {
                   <div className="panel-kicker">Setup Workspace</div>
                   <h2>Build your icon family</h2>
                 </div>
-                <span className="panel-badge">Phase 2</span>
+                <span className="panel-badge">Phase 3</span>
               </div>
 
               <div className="field">
@@ -165,6 +231,7 @@ function App() {
                 <select
                   id="style"
                   value={style}
+                  disabled={generationState === "generating"}
                   onChange={(event) => {
                     setStyle(event.target.value);
                     setWorkspaceMessage("");
@@ -176,9 +243,7 @@ function App() {
                     </option>
                   ))}
                 </select>
-                <p className="field-help">
-                  {styleOptions.find((option) => option.value === style)?.description}
-                </p>
+                <p className="field-help">{styleLabel(style)}</p>
               </div>
 
               {style === "custom" && (
@@ -191,13 +256,14 @@ function App() {
                         ? referenceFile.name
                         : "Choose an image reference"}
                     </span>
-                    <small>PNG, JPG, WEBP</small>
+                    <small>PNG, JPG, WEBP • max 4 MB</small>
                   </label>
                   <input
                     id="style-reference"
                     className="visually-hidden"
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
+                    disabled={generationState === "generating"}
                     onChange={(event) =>
                       setReferenceFile(event.target.files?.[0] ?? null)
                     }
@@ -214,6 +280,7 @@ function App() {
                   id="description"
                   value={description}
                   maxLength={500}
+                  disabled={generationState === "generating"}
                   onChange={(event) => {
                     setDescription(event.target.value);
                     setWorkspaceMessage("");
@@ -229,6 +296,7 @@ function App() {
                   <select
                     id="count"
                     value={count}
+                    disabled={generationState === "generating"}
                     onChange={(event) => setCount(event.target.value)}
                   >
                     {["10", "20", "30", "40"].map((value) => (
@@ -244,6 +312,7 @@ function App() {
                   <select
                     id="model"
                     value={model}
+                    disabled={generationState === "generating"}
                     onChange={(event) => setModel(event.target.value)}
                   >
                     <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
@@ -256,7 +325,10 @@ function App() {
                   <label>Dream Pop palette</label>
                   <span>Semantic colors</span>
                 </div>
-                <div className="swatches" aria-label="Dream Pop Sugar Bloom palette">
+                <div
+                  className="swatches"
+                  aria-label="Dream Pop Sugar Bloom palette"
+                >
                   {colorSwatches.map((swatch) => (
                     <span
                       className="swatch"
@@ -268,14 +340,26 @@ function App() {
                 </div>
               </div>
 
-              <button className="synthesize-button" type="submit">
+              <button
+                className="synthesize-button"
+                type="submit"
+                disabled={generationState === "generating"}
+              >
                 <span>✦</span>
-                Synthesize Icon Family
+                {generationState === "generating"
+                  ? "Synthesizing…"
+                  : generationState === "ready"
+                    ? "Synthesize Another Family"
+                    : "Synthesize Icon Family"}
                 <span className="button-count">{count}</span>
               </button>
 
               {workspaceMessage && (
-                <div className="workspace-message" role="status">
+                <div
+                  className={`workspace-message state-${generationState}`}
+                  role="status"
+                  aria-live="polite"
+                >
                   {workspaceMessage}
                 </div>
               )}
@@ -283,13 +367,17 @@ function App() {
 
             <aside className="card workspace-summary">
               <div className="panel-kicker">Generation brief</div>
-              <h2>Ready to synthesize</h2>
+              <h2>
+                {generationState === "ready"
+                  ? "Family generated"
+                  : generationState === "generating"
+                    ? "Synthesizing…"
+                    : "Ready to synthesize"}
+              </h2>
               <div className="summary-list">
                 <div>
                   <span>Style</span>
-                  <strong>
-                    {styleOptions.find((option) => option.value === style)?.label}
-                  </strong>
+                  <strong>{styleLabel(style)}</strong>
                 </div>
                 <div>
                   <span>Quantity</span>
@@ -304,10 +392,24 @@ function App() {
                   <strong>6 semantic swatches</strong>
                 </div>
               </div>
-              <div className="summary-note">
-                Generation is intentionally not called yet. Phase 3 will connect
-                this validated workspace to the server-side Gemini endpoint.
-              </div>
+
+              {generatedIcons.length > 0 && (
+                <div className="summary-note">
+                  <strong>{generatedIcons.length} icons received.</strong>
+                  <br />
+                  First icon: {generatedIcons[0].name}
+                  <br />
+                  SVG payloads are ready for the validation/export phases.
+                </div>
+              )}
+
+              {generatedIcons.length === 0 && (
+                <div className="summary-note">
+                  Phase 3 connects this workspace to the server-side Gemini
+                  endpoint. Generated SVGs will be surfaced in the Glyph Catalog
+                  during Phase 6.
+                </div>
+              )}
             </aside>
           </section>
         )}
