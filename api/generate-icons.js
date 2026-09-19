@@ -37,7 +37,7 @@ function sendError(response, status, code, message) {
   return response.status(status).json({ error: { code, message } });
 }
 
-function buildPrompt({ description, style, count, colorMode, colors }) {
+function buildPrompt({ description, style, count, colorMode, colors, colorTreatment, gradientAngle }) {
   const palette = colors
     .map((hex) => {
       const known = PALETTE.find(([, value]) => value.toLowerCase() === hex.toLowerCase());
@@ -53,16 +53,24 @@ function buildPrompt({ description, style, count, colorMode, colors }) {
     `Requested icon count: ${count}`,
     `Color mode: ${colorMode === "single" ? "single color" : "multiple colors"}`,
     `Selected palette: ${palette}`,
+    `Color treatment: ${colorTreatment}`,
+    `Gradient angle: ${gradientAngle} degrees when a linear gradient is used.`,
     "",
     "SVG requirements:",
     "- Return exactly the requested number of distinct icons.",
     "- Every SVG must be a standalone <svg> element with viewBox=\"0 0 64 64\".",
-    "- Use vector elements only: path, circle, rect, line, polyline, polygon, ellipse, and g.",
+    "- Use vector elements only: path, circle, rect, line, polyline, polygon, ellipse, g, defs, linearGradient, radialGradient, and stop.",
     "- Do not use script, foreignObject, iframe, object, embed, animation, filters with external references, or external assets.",
     "- Do not include XML declarations, HTML, Markdown fences, comments, or explanatory text inside the SVG string.",
     colorMode === "single"
       ? "- Use only the selected single color for all visible icon artwork, with transparency/background space as needed."
-      : "- Use only the selected colors; distribute them intentionally and consistently across the icon family.",
+      : colorTreatment === "linear-gradient"
+        ? "- Use the first color as Primary and the second color as Secondary. Blend them inside the icon with a real SVG linearGradient; use additional selected colors as extra stops only when present."
+        : colorTreatment === "radial-bloom"
+          ? "- Use a real SVG radialGradient to create a soft bloom from the Primary color through the selected secondary/accent colors."
+          : colorTreatment === "multi-mix"
+            ? "- Use every selected color as intentional SVG gradient stops so multiple colors visibly mix inside the icon rather than appearing as unrelated swatches."
+            : "- Use selected colors as deliberate solid fills while preserving a coherent icon family.",
     "- Keep geometry clean, compact, scalable, and visually recognizable at small sizes.",
     "- Each icon must have a short unique name.",
     "",
@@ -163,6 +171,8 @@ export default async function handler(request, response) {
   const count = Number(body.count);
   const model = typeof body.model === "string" ? body.model : "";
   const colorMode = body.colorMode === "single" ? "single" : "multiple";
+  const colorTreatment = typeof body.colorTreatment === "string" ? body.colorTreatment : "linear-gradient";
+  const gradientAngle = Number.isFinite(Number(body.gradientAngle)) ? Number(body.gradientAngle) : 90;
   const colors = Array.isArray(body.colors)
     ? body.colors.filter((color) => typeof color === "string")
     : [];
@@ -200,6 +210,15 @@ export default async function handler(request, response) {
 
   if (!ALLOWED_MODELS.has(model)) {
     return sendError(response, 400, "INVALID_INPUT", "Unsupported generation model.");
+  }
+
+  const allowedColorTreatments = new Set(["solid", "linear-gradient", "radial-bloom", "multi-mix"]);
+  if (!allowedColorTreatments.has(colorTreatment)) {
+    return sendError(response, 400, "INVALID_PALETTE", "Unsupported color treatment.");
+  }
+
+  if (!Number.isFinite(gradientAngle) || gradientAngle < 0 || gradientAngle > 360) {
+    return sendError(response, 400, "INVALID_PALETTE", "Gradient angle must be between 0 and 360 degrees.");
   }
 
   if (
