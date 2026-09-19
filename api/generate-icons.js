@@ -60,48 +60,74 @@ function buildPrompt({ description, style, count }) {
 }
 
 function extractOutputText(interaction) {
-  if (typeof interaction?.output_text === "string") {
+  if (typeof interaction?.output_text === "string" && interaction.output_text.trim()) {
     return interaction.output_text.trim();
   }
 
-  const outputs = Array.isArray(interaction?.outputs) ? interaction.outputs : [];
-  const lastOutput = outputs[outputs.length - 1];
-  if (typeof lastOutput?.text === "string") {
-    return lastOutput.text.trim();
-  }
+  const parts = [];
 
-  const textParts = [];
-  for (const step of interaction?.steps ?? []) {
-    if (step?.type !== "model_output") continue;
-    for (const block of step.content ?? []) {
-      if (block?.type === "text" && typeof block.text === "string") {
-        textParts.push(block.text);
+  const collectText = (value) => {
+    if (!value) return;
+
+    if (typeof value === "string") {
+      parts.push(value);
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) collectText(item);
+      return;
+    }
+
+    if (typeof value === "object") {
+      if (value.type === "text" && typeof value.text === "string") {
+        parts.push(value.text);
+      }
+      for (const [key, child] of Object.entries(value)) {
+        if (key === "text") continue;
+        if (key === "steps" || key === "content" || key === "outputs" || key === "output") {
+          collectText(child);
+        }
       }
     }
+  };
+
+  collectText(interaction?.steps);
+  if (parts.length > 0) {
+    return parts.join("").trim();
   }
 
-  return textParts.join("\n").trim();
+  return "";
 }
 
 function parseJsonOutput(text) {
+  if (!text || typeof text !== "string") {
+    throw new Error("Gemini returned no JSON text.");
+  }
+
   const cleaned = text
-    .replace(/^\s*\`\`\`(?:json)?\s*/i, "")
-    .replace(/\s*\`\`\`\s*$/i, "")
+    .replace(/^\\s*\\`\\`\\`(?:json)?\\s*/i, "")
+    .replace(/\\s*\\`\\`\\`\\s*$/i, "")
     .trim();
 
   try {
     return JSON.parse(cleaned);
   } catch {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
+    const objectStart = cleaned.indexOf("{");
+    const objectEnd = cleaned.lastIndexOf("}");
 
-    if (start !== -1 && end > start) {
-      return JSON.parse(cleaned.slice(start, end + 1));
+    if (objectStart !== -1 && objectEnd > objectStart) {
+      try {
+        return JSON.parse(cleaned.slice(objectStart, objectEnd + 1));
+      } catch {
+        throw new Error("Gemini returned malformed JSON.");
+      }
     }
 
     throw new Error("Gemini returned invalid JSON.");
   }
 }
+
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {
@@ -237,6 +263,15 @@ export default async function handler(request, response) {
         geminiResponse.status === 429 ? 429 : 502,
         geminiResponse.status === 429 ? "RATE_LIMITED" : "GEMINI_API_ERROR",
         providerMessage,
+      );
+    }
+
+    if (geminiPayload?.status === "failed" || geminiPayload?.status === "cancelled") {
+      return sendError(
+        response,
+        502,
+        "GEMINI_INCOMPLETE",
+        "Gemini did not complete the icon generation request. Try again.",
       );
     }
 
