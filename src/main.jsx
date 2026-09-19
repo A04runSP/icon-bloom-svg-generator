@@ -92,6 +92,28 @@ function App() {
     document.documentElement.dataset.theme = next;
   };
 
+  const handleCopySvg = async (svg) => {
+    try {
+      await navigator.clipboard.writeText(svg);
+      setWorkspaceMessage("SVG copied to clipboard.");
+    } catch {
+      setWorkspaceMessage("Could not copy the SVG. Try the download button.");
+    }
+  };
+
+  const handleDownloadSvg = (icon) => {
+    const blob = new Blob([icon.svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${icon.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || icon.id}.svg`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setWorkspaceMessage(`Downloaded ${icon.name}.svg.`);
+  };
+
   const handleSynthesize = async (event) => {
     event.preventDefault();
 
@@ -416,6 +438,47 @@ function App() {
               )}
             </aside>
           </section>
+
+          {generatedIcons.length > 0 && (
+            <section className="generated-results" aria-label="Generated SVG icons">
+              <div className="generated-results-heading">
+                <div>
+                  <div className="panel-kicker">Generated assets</div>
+                  <h2>Icon Bloom results</h2>
+                </div>
+                <span>{generatedIcons.length} SVG{generatedIcons.length === 1 ? "" : "s"}</span>
+              </div>
+
+              <div className="icon-gallery">
+                {generatedIcons.map((icon) => (
+                  <article className="card icon-result-card" key={icon.id}>
+                    <div className="icon-preview">
+                      <div
+                        className="generated-svg"
+                        role="img"
+                        aria-label={icon.name}
+                        dangerouslySetInnerHTML={{ __html: icon.svg }}
+                      />
+                    </div>
+
+                    <div className="icon-result-info">
+                      <h3>{icon.name}</h3>
+                      <span>64 × 64 SVG • validated</span>
+                    </div>
+
+                    <div className="icon-result-actions">
+                      <button type="button" onClick={() => handleCopySvg(icon.svg)}>
+                        Copy SVG
+                      </button>
+                      <button type="button" onClick={() => handleDownloadSvg(icon)}>
+                        Download SVG
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         )}
 
         {activeTab === "Live Sandbox" && (
