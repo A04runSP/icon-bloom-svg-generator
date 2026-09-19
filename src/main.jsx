@@ -363,14 +363,6 @@ function App() {
             </div>
           </article>
 
-          <aside className="card preview-card" aria-label="Icon Bloom preview">
-            <div className="bloom-orbit">
-              <span className="orbit-dot" />
-              <span className="orbit-dot" />
-              <span className="orbit-dot" />
-              <div className="bloom-icon">✿</div>
-            </div>
-          </aside>
         </section>
 
         <div className="section-label">{activeTab}</div>
