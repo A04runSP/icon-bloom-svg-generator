@@ -1,6 +1,6 @@
 import { ICON_RESPONSE_SCHEMA, validateIconResponse } from "../src/data/iconSchema.js";
 
-const ALLOWED_MODELS = new Set(["gemini-2.5-flash"]);
+const ALLOWED_MODELS = new Set(["gemini-3.6-flash"]);
 const ALLOWED_STYLES = new Set([
   "handdrawn",
   "pixel",
